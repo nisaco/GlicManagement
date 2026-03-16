@@ -9,7 +9,7 @@ export const CHURCH = {
   // To add your logo:
   // 1. Put your logo image file in frontend/public/logo.png
   // 2. Change null below to '/logo.png'
-  logo: null,
+  logo: '/logo.png',
   initials: 'GL',
   location: 'Accra, Ghana',
 };
