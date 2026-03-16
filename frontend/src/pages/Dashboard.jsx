@@ -53,7 +53,7 @@ export default function Dashboard() {
         <div>
           <div className="pg-breadcrumb">{CHURCH.name}</div>
           <h1 className="pg-title">
-            {greet()}, <span style={{ color:'var(--gold2)', fontStyle:'italic' }}>Pastor</span> 👋
+            {greet()}, <span style={{ color:'var(--gold2)', fontStyle:'italic' }}>Admin</span>
           </h1>
           <p className="pg-sub">
             {new Date().toLocaleDateString('en-GH',{ weekday:'long', year:'numeric', month:'long', day:'numeric' })}
