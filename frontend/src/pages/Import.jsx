@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 
-const REQUIRED_COLS = ['firstName', 'lastName'];
-const ALL_COLS = [
+// ── Column definitions ──
+const MEMBER_COLS = [
   { key:'firstName',      label:'First Name',        required:true  },
   { key:'lastName',       label:'Last Name',          required:true  },
   { key:'email',          label:'Email',              required:false },
@@ -17,87 +17,109 @@ const ALL_COLS = [
   { key:'notes',          label:'Notes',              required:false },
 ];
 
-// Download a blank template CSV
-const downloadTemplate = () => {
-  const headers = ALL_COLS.map(c => c.key).join(',');
-  const example = 'Kwame,Mensah,kwame@email.com,0244000001,233244000001,Accra,member,active,200,"Choir,Ushering",2024-01-15,';
+const PAYMENT_COLS = [
+  { key:'memberName',  label:'Member Full Name',  required:true  },
+  { key:'amount',      label:'Amount (GH₵)',       required:true  },
+  { key:'year',        label:'Year',               required:true  },
+  { key:'month',       label:'Month (1-12)',        required:false },
+  { key:'type',        label:'Payment Type',       required:false },
+  { key:'method',      label:'Payment Method',     required:false },
+  { key:'reference',   label:'Reference / Receipt',required:false },
+  { key:'notes',       label:'Notes',              required:false },
+];
+
+const PAYMENT_TYPES   = ['dues','tithe','building_fund','welfare','youth_levy','offering','other'];
+const PAYMENT_METHODS = ['cash','momo','bank_transfer','cheque'];
+
+// Download template CSV
+const downloadTemplate = (type) => {
+  const cols    = type === 'members' ? MEMBER_COLS  : PAYMENT_COLS;
+  const headers = cols.map(c => c.key).join(',');
+  const example = type === 'members'
+    ? 'Kwame,Mensah,kwame@email.com,0244000001,233244000001,Accra,member,active,200,"Choir,Ushering",2024-01-15,'
+    : 'Kwame Mensah,200,2024,3,dues,cash,REC001,';
   const csv = `${headers}\n${example}`;
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(new Blob([csv], { type:'text/csv' })),
-    download: 'members-import-template.csv',
+  const a   = Object.assign(document.createElement('a'), {
+    href:     URL.createObjectURL(new Blob([csv], { type:'text/csv' })),
+    download: `${type}-import-template.csv`,
   });
   a.click();
 };
 
+// Parse CSV text into headers + rows
+const parseCSV = (text) => {
+  const lines = text.trim().split('\n').filter(Boolean);
+  if (lines.length < 2) return { error: 'File must have a header row and at least one data row.' };
+
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase().replace(/\s+/g,''));
+  const rows    = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = [];
+    let cur = ''; let inQ = false;
+    for (const ch of lines[i]) {
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; continue; }
+      cur += ch;
+    }
+    cols.push(cur.trim());
+    rows.push(cols);
+  }
+  return { headers, rows };
+};
+
 export default function Import() {
-  const [step,      setStep]      = useState(1); // 1=upload, 2=preview, 3=done
-  const [rows,      setRows]      = useState([]);
-  const [headers,   setHeaders]   = useState([]);
-  const [mapping,   setMapping]   = useState({});
-  const [result,    setResult]    = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState('');
-  const [dragOver,  setDragOver]  = useState(false);
+  const [tab,      setTab]      = useState('members'); // members | payments
+  const [step,     setStep]     = useState(1);
+  const [rows,     setRows]     = useState([]);
+  const [headers,  setHeaders]  = useState([]);
+  const [mapping,  setMapping]  = useState({});
+  const [result,   setResult]   = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef();
 
-  const parseCSV = (text) => {
-    const lines = text.trim().split('\n').filter(Boolean);
-    if (lines.length < 2) { setError('File must have a header row and at least one data row.'); return; }
+  const COLS = tab === 'members' ? MEMBER_COLS : PAYMENT_COLS;
 
-    // Parse header
-    const hdrs = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase().replace(/\s+/g,''));
-    setHeaders(hdrs);
+  const reset = () => {
+    setStep(1); setRows([]); setHeaders([]);
+    setMapping({}); setResult(null); setError('');
+  };
 
-    // Auto-map columns — try to match by name
+  const handleTabChange = (t) => { setTab(t); reset(); };
+
+  const handleFileData = (text) => {
+    const parsed = parseCSV(text);
+    if (parsed.error) { setError(parsed.error); return; }
+
+    setHeaders(parsed.headers);
+    setRows(parsed.rows);
+
+    // Auto-map columns
     const autoMap = {};
-    ALL_COLS.forEach(col => {
-      const match = hdrs.findIndex(h =>
+    COLS.forEach(col => {
+      const match = parsed.headers.findIndex(h =>
         h === col.key.toLowerCase() ||
-        h === col.label.toLowerCase().replace(/[^a-z]/g,'') ||
-        h.includes(col.key.toLowerCase().slice(0,5))
+        h.includes(col.key.toLowerCase().slice(0,5)) ||
+        h === col.label.toLowerCase().replace(/[^a-z]/g,'')
       );
       if (match !== -1) autoMap[col.key] = match;
     });
     setMapping(autoMap);
-
-    // Parse rows
-    const parsed = [];
-    for (let i = 1; i < lines.length; i++) {
-      // Handle quoted commas in CSV
-      const cols = [];
-      let cur = ''; let inQ = false;
-      for (const ch of lines[i]) {
-        if (ch === '"') { inQ = !inQ; continue; }
-        if (ch === ',' && !inQ) { cols.push(cur.trim()); cur=''; continue; }
-        cur += ch;
-      }
-      cols.push(cur.trim());
-      parsed.push(cols);
-    }
-    setRows(parsed);
     setStep(2);
     setError('');
   };
 
   const handleFile = file => {
     if (!file) return;
-    if (!file.name.match(/\.(csv|xlsx|xls)$/i)) {
-      setError('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
-      return;
-    }
-    // For Excel files, tell user to save as CSV first
-    if (file.name.match(/\.xlsx?$/i)) {
-      setError('Please save your Excel file as CSV first: File → Save As → CSV (Comma delimited)');
+    if (!file.name.match(/\.(csv)$/i)) {
+      setError('Please upload a .csv file. Excel users: File → Save As → CSV');
       return;
     }
     const reader = new FileReader();
-    reader.onload = e => parseCSV(e.target.result);
+    reader.onload = e => handleFileData(e.target.result);
     reader.readAsText(file);
-  };
-
-  const handleDrop = e => {
-    e.preventDefault(); setDragOver(false);
-    handleFile(e.dataTransfer.files[0]);
   };
 
   const getMappedValue = (row, colKey) => {
@@ -106,23 +128,24 @@ export default function Import() {
     return row[idx] || '';
   };
 
-  const buildMemberList = () => rows.map(row => {
+  const buildList = () => rows.map(row => {
     const obj = {};
-    ALL_COLS.forEach(col => { obj[col.key] = getMappedValue(row, col.key); });
+    COLS.forEach(col => { obj[col.key] = getMappedValue(row, col.key); });
     return obj;
   });
 
   const handleImport = async () => {
-    // Validate required fields
-    const missing = REQUIRED_COLS.filter(k => mapping[k] === undefined || mapping[k] === '');
+    const missing = COLS.filter(c => c.required && (mapping[c.key] === undefined || mapping[c.key] === ''));
     if (missing.length) {
-      setError(`Please map required columns: ${missing.join(', ')}`);
+      setError(`Please map required columns: ${missing.map(c=>c.label).join(', ')}`);
       return;
     }
     setLoading(true); setError('');
     try {
-      const members = buildMemberList();
-      const { data } = await axios.post('/api/members/bulk-import', { members });
+      const list = buildList();
+      const url  = tab === 'members' ? '/api/members/bulk-import' : '/api/payments/bulk-import';
+      const body = tab === 'members' ? { members: list } : { payments: list };
+      const { data } = await axios.post(url, body);
       setResult(data);
       setStep(3);
     } catch (err) {
@@ -132,40 +155,57 @@ export default function Import() {
     }
   };
 
-  const reset = () => { setStep(1); setRows([]); setHeaders([]); setMapping({}); setResult(null); setError(''); };
-
-  const preview = buildMemberList().slice(0, 5);
+  const preview = buildList().slice(0, 5);
 
   return (
     <div>
+      {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:24, flexWrap:'wrap', gap:12 }}>
         <div>
           <div className="pg-breadcrumb">Gospel Light International Church</div>
-          <h1 className="pg-title">Import <span style={{ color:'var(--gold2)', fontStyle:'italic' }}>Members</span></h1>
-          <p className="pg-sub">Bulk upload members from Excel or CSV — no manual entry needed</p>
+          <h1 className="pg-title">
+            Bulk <span style={{ color:'var(--gold2)', fontStyle:'italic' }}>Import</span>
+          </h1>
+          <p className="pg-sub">Import members or payment records from a CSV file</p>
         </div>
-        <button onClick={downloadTemplate} className="btn btn-ghost">📥 Download Template</button>
+        {step === 1 && (
+          <button onClick={() => downloadTemplate(tab)} className="btn btn-ghost">
+            📥 Download {tab === 'members' ? 'Members' : 'Payments'} Template
+          </button>
+        )}
       </div>
 
+      {/* Tab switcher */}
+      {step === 1 && (
+        <div style={{ display:'flex', gap:0, marginBottom:24, background:'rgba(255,255,255,0.04)', borderRadius:12, padding:4, width:'fit-content', border:'1px solid rgba(255,255,255,0.08)' }}>
+          {[
+            { k:'members',  label:'👥 Members'          },
+            { k:'payments', label:'💳 Payment Records'  },
+          ].map(t => (
+            <button key={t.k} onClick={() => handleTabChange(t.k)} style={{
+              padding:'9px 22px', borderRadius:9, fontSize:13.5, fontWeight:500,
+              cursor:'pointer', fontFamily:'var(--font-body)', transition:'all 0.2s', border:'none',
+              background: tab===t.k ? 'linear-gradient(135deg,var(--gold),#8B6420)' : 'transparent',
+              color:      tab===t.k ? 'var(--navy)' : 'rgba(255,255,255,0.5)',
+              boxShadow:  tab===t.k ? 'var(--shadow-gold)' : 'none',
+            }}>{t.label}</button>
+          ))}
+        </div>
+      )}
+
       {/* Steps indicator */}
-      <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:28 }}>
-        {[
-          { n:1, label:'Upload File'     },
-          { n:2, label:'Map & Preview'   },
-          { n:3, label:'Done'            },
-        ].map((s, i) => (
+      <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:28, flexWrap:'wrap', gap:8 }}>
+        {[{ n:1, label:'Upload File' },{ n:2, label:'Map & Preview' },{ n:3, label:'Done' }].map((s, i) => (
           <div key={s.n} style={{ display:'flex', alignItems:'center' }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{
-                width:32, height:32, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:13, fontWeight:700, transition:'all 0.3s',
-                background: step >= s.n ? 'linear-gradient(135deg,var(--gold),#8B6420)' : 'rgba(255,255,255,0.06)',
-                color:      step >= s.n ? 'var(--navy)' : 'rgba(255,255,255,0.3)',
-                border:     step >= s.n ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              }}>{step > s.n ? '✓' : s.n}</div>
-              <span style={{ fontSize:13, color: step >= s.n ? 'var(--white)' : 'var(--muted)', fontWeight: step===s.n ? 500 : 400 }}>{s.label}</span>
+              <div style={{ width:32, height:32, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, transition:'all 0.3s',
+                background: step>=s.n ? 'linear-gradient(135deg,var(--gold),#8B6420)' : 'rgba(255,255,255,0.06)',
+                color:      step>=s.n ? 'var(--navy)' : 'rgba(255,255,255,0.3)',
+                border:     step>=s.n ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              }}>{step>s.n ? '✓' : s.n}</div>
+              <span style={{ fontSize:13, color:step>=s.n?'var(--white)':'var(--muted)', fontWeight:step===s.n?500:400 }}>{s.label}</span>
             </div>
-            {i < 2 && <div style={{ width:40, height:1, background: step > s.n ? 'var(--gold)' : 'rgba(255,255,255,0.1)', margin:'0 12px', transition:'background 0.3s' }}/>}
+            {i < 2 && <div style={{ width:32, height:1, background:step>s.n?'var(--gold)':'rgba(255,255,255,0.1)', margin:'0 10px', transition:'background 0.3s' }}/>}
           </div>
         ))}
       </div>
@@ -179,42 +219,41 @@ export default function Import() {
       {/* ── STEP 1: Upload ── */}
       {step === 1 && (
         <div>
-          {/* How it works */}
-          <div className="glass-card" style={{ padding:'20px 24px', marginBottom:20 }}>
-            <div style={{ fontFamily:'var(--font-display)', fontSize:18, fontWeight:600, color:'var(--white)', marginBottom:14 }}>How it works</div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }} className="content-2col">
-              {[
-                { icon:'📥', title:'Download template', desc:'Click "Download Template" above to get a blank CSV with the right column headers' },
-                { icon:'📝', title:'Fill in your data', desc:'Open in Excel or Google Sheets. Fill in member details — only First Name and Last Name are required' },
-                { icon:'⬆️', title:'Upload & import', desc:'Save as CSV and upload here. We\'ll show you a preview before anything is saved' },
-              ].map(h => (
-                <div key={h.title} style={{ padding:'16px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)' }}>
-                  <div style={{ fontSize:24, marginBottom:8 }}>{h.icon}</div>
-                  <div style={{ fontSize:13.5, fontWeight:500, color:'var(--white)', marginBottom:4 }}>{h.title}</div>
-                  <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>{h.desc}</div>
-                </div>
-              ))}
-            </div>
+          {/* Info cards */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:20 }} className="content-2col">
+            {[
+              { icon:'📥', title:'Download template',  desc:`Click "Download ${tab==='members'?'Members':'Payments'} Template" above to get a blank CSV with the correct headers` },
+              { icon:'📝', title:'Fill in your data',  desc: tab==='members'
+                  ? 'Open in Excel or Google Sheets. Fill in member details — First Name and Last Name are required'
+                  : 'Fill in payment records. Member Full Name must match exactly as saved in your system. Year is required' },
+              { icon:'⬆️', title:'Upload & import',    desc:'Save as CSV and upload here. We show you a preview before anything is saved' },
+            ].map(h => (
+              <div key={h.title} style={{ padding:16, borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)' }}>
+                <div style={{ fontSize:24, marginBottom:8 }}>{h.icon}</div>
+                <div style={{ fontSize:13.5, fontWeight:500, color:'var(--white)', marginBottom:4 }}>{h.title}</div>
+                <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>{h.desc}</div>
+              </div>
+            ))}
           </div>
+
+          {/* Payments extra note */}
+          {tab === 'payments' && (
+            <div style={{ padding:'14px 18px', borderRadius:12, background:'rgba(201,148,58,0.07)', border:'1px solid rgba(201,148,58,0.2)', marginBottom:20, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.7 }}>
+              💡 <strong style={{ color:'var(--gold2)' }}>Important for Payment imports:</strong> The <strong>Member Full Name</strong> column must match exactly how the member's name is saved in your system (e.g. "Kwame Mensah" not "K. Mensah"). Payment type options: <span style={{ color:'var(--gold2)' }}>{PAYMENT_TYPES.join(', ')}</span>. Method options: <span style={{ color:'var(--gold2)' }}>{PAYMENT_METHODS.join(', ')}</span>. Month is a number 1–12.
+            </div>
+          )}
 
           {/* Drop zone */}
           <div
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
+            onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
             onClick={() => fileRef.current?.click()}
-            style={{
-              border: `2px dashed ${dragOver ? 'var(--gold)' : 'rgba(201,148,58,0.25)'}`,
-              borderRadius:16, padding:'48px 24px', textAlign:'center', cursor:'pointer',
-              background: dragOver ? 'rgba(201,148,58,0.06)' : 'rgba(255,255,255,0.02)',
-              transition:'all 0.2s',
-            }}>
+            style={{ border:`2px dashed ${dragOver?'var(--gold)':'rgba(201,148,58,0.25)'}`, borderRadius:16, padding:'48px 24px', textAlign:'center', cursor:'pointer', background:dragOver?'rgba(201,148,58,0.06)':'rgba(255,255,255,0.02)', transition:'all 0.2s' }}>
             <div style={{ fontSize:48, marginBottom:14, opacity:0.6 }}>📂</div>
-            <div style={{ fontFamily:'var(--font-display)', fontSize:22, color:'var(--white)', marginBottom:8 }}>
-              Drop your CSV file here
-            </div>
-            <div style={{ fontSize:13, color:'var(--muted)', marginBottom:16 }}>or click to browse</div>
-            <div style={{ fontSize:12, color:'rgba(255,255,255,0.2)' }}>Supports .csv files · Excel users: File → Save As → CSV</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:22, color:'var(--white)', marginBottom:8 }}>Drop your CSV file here</div>
+            <div style={{ fontSize:13, color:'var(--muted)', marginBottom:8 }}>or click to browse</div>
+            <div style={{ fontSize:12, color:'rgba(255,255,255,0.2)' }}>Supports .csv files · Excel: File → Save As → CSV</div>
             <input ref={fileRef} type="file" accept=".csv" style={{ display:'none' }} onChange={e => handleFile(e.target.files[0])}/>
           </div>
         </div>
@@ -229,22 +268,20 @@ export default function Import() {
             <div className="glass-card">
               <div style={{ padding:'16px 22px', borderBottom:'1px solid var(--border)', background:'rgba(255,255,255,0.02)' }}>
                 <div style={{ fontFamily:'var(--font-display)', fontSize:18, fontWeight:600, color:'var(--white)' }}>Map Your Columns</div>
-                <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Match your spreadsheet columns to member fields</div>
+                <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Match your spreadsheet columns to the right fields</div>
               </div>
               <div style={{ padding:'16px 22px', display:'flex', flexDirection:'column', gap:10 }}>
-                {ALL_COLS.map(col => (
+                {COLS.map(col => (
                   <div key={col.key} style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ width:160, fontSize:12.5, color: col.required ? 'var(--gold2)' : 'rgba(255,255,255,0.6)', flexShrink:0 }}>
+                    <div style={{ width:170, fontSize:12.5, color:col.required?'var(--gold2)':'rgba(255,255,255,0.6)', flexShrink:0 }}>
                       {col.label}{col.required && <span style={{ color:'var(--red)', marginLeft:2 }}>*</span>}
                     </div>
                     <select
                       value={mapping[col.key] ?? ''}
-                      onChange={e => setMapping(m => ({ ...m, [col.key]: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                      onChange={e => setMapping(m => ({ ...m, [col.key]: e.target.value===''?undefined:Number(e.target.value) }))}
                       style={{ flex:1, padding:'6px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:12, fontFamily:'var(--font-body)', outline:'none' }}>
                       <option value="">— Not mapped —</option>
-                      {headers.map((h, i) => (
-                        <option key={i} value={i}>{h}</option>
-                      ))}
+                      {headers.map((h,i) => <option key={i} value={i}>{h}</option>)}
                     </select>
                   </div>
                 ))}
@@ -252,14 +289,16 @@ export default function Import() {
             </div>
 
             {/* Stats */}
-            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
               <div className="glass-card" style={{ padding:'20px 22px' }}>
-                <div style={{ fontSize:10.5, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Rows detected</div>
+                <div style={{ fontSize:10.5, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Rows Detected</div>
                 <div style={{ fontFamily:'var(--font-display)', fontSize:40, fontWeight:700, color:'var(--gold2)' }}>{rows.length}</div>
-                <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>members ready to import</div>
+                <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>
+                  {tab==='members' ? 'members' : 'payment records'} ready to import
+                </div>
               </div>
               <div className="glass-card" style={{ padding:'20px 22px' }}>
-                <div style={{ fontSize:10.5, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Columns in file</div>
+                <div style={{ fontSize:10.5, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Columns in File</div>
                 <div style={{ fontFamily:'var(--font-display)', fontSize:40, fontWeight:700, color:'var(--white)' }}>{headers.length}</div>
                 <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:8 }}>
                   {headers.map(h => (
@@ -273,27 +312,37 @@ export default function Import() {
           {/* Preview table */}
           <div className="glass-card" style={{ marginBottom:20 }}>
             <div style={{ padding:'16px 22px', borderBottom:'1px solid var(--border)', background:'rgba(255,255,255,0.02)' }}>
-              <div style={{ fontFamily:'var(--font-display)', fontSize:18, fontWeight:600, color:'var(--white)' }}>
+              <span style={{ fontFamily:'var(--font-display)', fontSize:18, fontWeight:600, color:'var(--white)' }}>
                 Preview <span style={{ fontSize:13, fontWeight:400, color:'var(--muted)', fontFamily:'var(--font-body)' }}>(first 5 rows)</span>
-              </div>
+              </span>
             </div>
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
                   <tr>
-                    {['First Name','Last Name','WhatsApp','Location','Role','Dues','Departments'].map(h => <th key={h}>{h}</th>)}
+                    {tab === 'members'
+                      ? ['First Name','Last Name','WhatsApp','Location','Role','Dues'].map(h=><th key={h}>{h}</th>)
+                      : ['Member Name','Amount','Year','Month','Type','Method'].map(h=><th key={h}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.map((m, i) => (
+                  {preview.map((row, i) => (
                     <tr key={i}>
-                      <td style={{ fontWeight:500 }}>{m.firstName||<span style={{ color:'var(--red)' }}>Missing</span>}</td>
-                      <td style={{ fontWeight:500 }}>{m.lastName ||<span style={{ color:'var(--red)' }}>Missing</span>}</td>
-                      <td style={{ color:'var(--muted)' }}>{m.whatsapp||'—'}</td>
-                      <td style={{ color:'var(--muted)' }}>{m.location||'—'}</td>
-                      <td style={{ color:'var(--muted)', textTransform:'capitalize' }}>{m.role||'member'}</td>
-                      <td style={{ color:'var(--gold2)' }}>GH₵ {m.duesAmount||200}</td>
-                      <td style={{ color:'var(--muted)', fontSize:12 }}>{m.departments||'—'}</td>
+                      {tab === 'members' ? (<>
+                        <td style={{ fontWeight:500 }}>{row.firstName || <span style={{ color:'var(--red)' }}>Missing</span>}</td>
+                        <td style={{ fontWeight:500 }}>{row.lastName  || <span style={{ color:'var(--red)' }}>Missing</span>}</td>
+                        <td style={{ color:'var(--muted)' }}>{row.whatsapp||'—'}</td>
+                        <td style={{ color:'var(--muted)' }}>{row.location||'—'}</td>
+                        <td style={{ color:'var(--muted)', textTransform:'capitalize' }}>{row.role||'member'}</td>
+                        <td style={{ color:'var(--gold2)' }}>GH₵ {row.duesAmount||200}</td>
+                      </>) : (<>
+                        <td style={{ fontWeight:500 }}>{row.memberName || <span style={{ color:'var(--red)' }}>Missing</span>}</td>
+                        <td style={{ color:'var(--green)', fontWeight:500 }}>{row.amount ? `GH₵ ${row.amount}` : <span style={{ color:'var(--red)' }}>Missing</span>}</td>
+                        <td style={{ color:'var(--muted)' }}>{row.year || <span style={{ color:'var(--red)' }}>Missing</span>}</td>
+                        <td style={{ color:'var(--muted)' }}>{row.month||'—'}</td>
+                        <td style={{ color:'var(--muted)', textTransform:'capitalize' }}>{row.type?.replace('_',' ')||'dues'}</td>
+                        <td style={{ color:'var(--muted)', textTransform:'capitalize' }}>{row.method||'cash'}</td>
+                      </>)}
                     </tr>
                   ))}
                 </tbody>
@@ -301,10 +350,10 @@ export default function Import() {
             </div>
           </div>
 
-          <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap' }}>
             <button onClick={reset} className="btn btn-ghost">← Start Over</button>
-            <button onClick={handleImport} disabled={loading} className="btn btn-gold" style={{ minWidth:160 }}>
-              {loading ? 'Importing...' : `Import ${rows.length} Members →`}
+            <button onClick={handleImport} disabled={loading} className="btn btn-gold" style={{ minWidth:180 }}>
+              {loading ? 'Importing...' : `Import ${rows.length} ${tab==='members'?'Members':'Records'} →`}
             </button>
           </div>
         </div>
@@ -314,32 +363,34 @@ export default function Import() {
       {step === 3 && result && (
         <div className="glass-card" style={{ padding:'48px 32px', textAlign:'center' }}>
           <div style={{ fontSize:56, marginBottom:16 }}>🎉</div>
-          <div style={{ fontFamily:'var(--font-display)', fontSize:30, fontWeight:700, color:'var(--white)', marginBottom:8 }}>
-            Import Complete!
-          </div>
+          <div style={{ fontFamily:'var(--font-display)', fontSize:30, fontWeight:700, color:'var(--white)', marginBottom:8 }}>Import Complete!</div>
           <div style={{ fontSize:14, color:'var(--muted)', marginBottom:28 }}>{result.message}</div>
 
           <div style={{ display:'flex', justifyContent:'center', gap:16, marginBottom:32, flexWrap:'wrap' }}>
             <div style={{ padding:'16px 28px', borderRadius:14, background:'rgba(46,204,113,0.1)', border:'1px solid rgba(46,204,113,0.2)' }}>
               <div style={{ fontFamily:'var(--font-display)', fontSize:32, fontWeight:700, color:'var(--green)' }}>{result.created}</div>
-              <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>Members Added</div>
+              <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>Records Added</div>
             </div>
             <div style={{ padding:'16px 28px', borderRadius:14, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ fontFamily:'var(--font-display)', fontSize:32, fontWeight:700, color:'var(--muted)' }}>{result.skipped}</div>
-              <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>Skipped (duplicates)</div>
+              <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>Skipped</div>
             </div>
           </div>
 
           {result.errors?.length > 0 && (
-            <div style={{ background:'rgba(224,85,85,0.08)', border:'1px solid rgba(224,85,85,0.2)', borderRadius:10, padding:16, marginBottom:20, textAlign:'left' }}>
-              <div style={{ fontSize:12, fontWeight:600, color:'var(--red)', marginBottom:8 }}>Some rows had errors:</div>
-              {result.errors.map((e, i) => <div key={i} style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginBottom:4 }}>• {e}</div>)}
+            <div style={{ background:'rgba(224,85,85,0.08)', border:'1px solid rgba(224,85,85,0.2)', borderRadius:10, padding:16, marginBottom:20, textAlign:'left', maxHeight:180, overflowY:'auto' }}>
+              <div style={{ fontSize:12, fontWeight:600, color:'var(--red)', marginBottom:8 }}>⚠ Some rows had issues:</div>
+              {result.errors.map((e,i) => (
+                <div key={i} style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginBottom:4 }}>• {e}</div>
+              ))}
             </div>
           )}
 
-          <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
+          <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
             <button onClick={reset} className="btn btn-ghost">Import Another File</button>
-            <a href="/members" className="btn btn-gold" style={{ textDecoration:'none' }}>View All Members →</a>
+            <a href={tab==='members'?'/members':'/payments'} className="btn btn-gold" style={{ textDecoration:'none' }}>
+              View {tab==='members'?'Members':'Payments'} →
+            </a>
           </div>
         </div>
       )}
