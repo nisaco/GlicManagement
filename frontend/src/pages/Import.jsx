@@ -18,14 +18,14 @@ const MEMBER_COLS = [
 ];
 
 const PAYMENT_COLS = [
-  { key:'memberName',  label:'Member Full Name',  required:true  },
-  { key:'amount',      label:'Amount (GH₵)',       required:true  },
-  { key:'year',        label:'Year',               required:true  },
-  { key:'month',       label:'Month (1-12)',        required:false },
-  { key:'type',        label:'Payment Type',       required:false },
-  { key:'method',      label:'Payment Method',     required:false },
-  { key:'reference',   label:'Reference / Receipt',required:false },
-  { key:'notes',       label:'Notes',              required:false },
+  { key:'memberName',  label:'Member Full Name',          required:true  },
+  { key:'amount',      label:'Amount (GH₵)',               required:true  },
+  { key:'year',        label:'Year',                       required:true  },
+  { key:'months',      label:'Months (e.g. 1 or 1,2,3 or 1-6)', required:false },
+  { key:'type',        label:'Payment Type',               required:false },
+  { key:'method',      label:'Payment Method',             required:false },
+  { key:'reference',   label:'Reference / Receipt',        required:false },
+  { key:'notes',       label:'Notes',                      required:false },
 ];
 
 const PAYMENT_TYPES   = ['dues','tithe','building_fund','welfare','youth_levy','offering','other'];
@@ -238,11 +238,15 @@ export default function Import() {
 
           {/* Payments extra note */}
           {tab === 'payments' && (
-            <div style={{ padding:'14px 18px', borderRadius:12, background:'rgba(201,148,58,0.07)', border:'1px solid rgba(201,148,58,0.2)', marginBottom:20, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.7 }}>
-              💡 <strong style={{ color:'var(--gold2)' }}>Important for Payment imports:</strong> The <strong>Member Full Name</strong> column must match exactly how the member's name is saved in your system (e.g. "Kwame Mensah" not "K. Mensah"). Payment type options: <span style={{ color:'var(--gold2)' }}>{PAYMENT_TYPES.join(', ')}</span>. Method options: <span style={{ color:'var(--gold2)' }}>{PAYMENT_METHODS.join(', ')}</span>. Month is a number 1–12.
-            </div>
-          )}
-
+  <div style={{ padding:'14px 18px', borderRadius:12, background:'rgba(201,148,58,0.07)', border:'1px solid rgba(201,148,58,0.2)', marginBottom:20, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.8 }}>
+    💡 <strong style={{ color:'var(--gold2)' }}>Tips for Payment imports:</strong><br/>
+    • <strong>Member Full Name</strong> must match how the name is saved e.g. <em>Kwame Mensah</em><br/>
+    • <strong>Months column</strong> supports: single month <span style={{ color:'var(--gold2)' }}>3</span>, list <span style={{ color:'var(--gold2)' }}>1,2,3</span>, or range <span style={{ color:'var(--gold2)' }}>1-6</span> — a separate record is created per month<br/>
+    • <strong>Payment type options:</strong> <span style={{ color:'var(--gold2)' }}>{PAYMENT_TYPES.join(', ')}</span><br/>
+    • <strong>Method options:</strong> <span style={{ color:'var(--gold2)' }}>{PAYMENT_METHODS.join(', ')}</span><br/>
+    • Import members first before importing their payment records
+  </div>
+)}
           {/* Drop zone */}
           <div
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
