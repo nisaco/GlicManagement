@@ -8,7 +8,7 @@ const NAV = [
   { to:'/',            label:'Dashboard',          icon:'⬛' },
   { section: 'Members' },
   { to:'/members',     label:'Members',             icon:'👥', roles:['admin','secretary'] },
-  { to:'/import',      label:'Import Members',      icon:'📥', roles:['admin','secretary'] },
+  { to:'/import',      label:'Import',      icon:'📥', roles:['admin','secretary'] },
   { to:'/birthdays',   label:'Birthdays',           icon:'🎂', roles:['admin','secretary'] },
   { to:'/cards',       label:'Membership Cards',    icon:'🪪', roles:['admin','secretary'] },
   { section: 'Finance' },
