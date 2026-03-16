@@ -180,7 +180,7 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   z-index: 200;
   padding: 80px 20px 20px;
@@ -194,7 +194,7 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
   border-radius: 22px;
   width: 100%;
   max-width: 560px;
-  max-height: 88vh;
+  max-height: 80vh;
   display: flex;
   flex-direction: column;
   box-shadow:
