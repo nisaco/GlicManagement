@@ -5,7 +5,7 @@ const DEPARTMENTS = ['Choir','Ushering',"Women's Ministry","Men's Ministry",'You
 const emptyForm = {
   firstName:'', lastName:'', email:'', phone:'', whatsapp:'',
   dob:'', membershipDate:'', baptismDate:'', status:'active',
-  role:'member', departments:[], location:'', duesAmount:200, notes:'', photo:''
+  role:'member', departments:[], location:'', duesAmount:10, notes:'', photo:''
 };
 
 export default function Members() {
