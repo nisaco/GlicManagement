@@ -21,6 +21,31 @@ app.use('/api/activity', require('./routes/activitylog').router);
 
 // Serve React frontend in production
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// ONE-TIME cleanup — remove duplicate payments (same member+month+year+type)
+app.delete('/api/admin/cleanup-duplicates', async (req, res) => {
+  try {
+    const Payment  = require('./models/Payment');
+    const payments = await Payment.find({ month: { $ne: null } }).sort({ createdAt: 1 });
+    const seen     = new Set();
+    const toDelete = [];
+
+    for (const p of payments) {
+      const key = `${p.member}-${p.month}-${p.year}-${p.type}`;
+      if (seen.has(key)) {
+        toDelete.push(p._id);
+      } else {
+        seen.add(key);
+      }
+    }
+
+    await Payment.deleteMany({ _id: { $in: toDelete } });
+    res.json({ message: `Cleaned up ${toDelete.length} duplicate records` });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
 });

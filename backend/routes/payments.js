@@ -1,7 +1,7 @@
-const express = require('express');
-const router  = express.Router();
-const Payment = require('../models/Payment');
-const Member  = require('../models/Member');
+const express  = require('express');
+const router   = express.Router();
+const Payment  = require('../models/Payment');
+const Member   = require('../models/Member');
 const { protect } = require('../middleware/auth');
 
 // Helper — check if a payment already exists for member+month+year+type
@@ -19,12 +19,12 @@ const paymentExists = async (memberId, month, year, type) => {
 // GET /api/payments
 router.get('/', protect, async (req, res) => {
   try {
-    const { member, type, year, month } = req.query;
+    const { memberId, member, type, year, month } = req.query;
     const query = {};
-    if (member) query.member = member;
-    if (type)   query.type   = type;
-    if (year)   query.year   = Number(year);
-    if (month)  query.month  = Number(month);
+    if (memberId || member) query.member = memberId || member;
+    if (type)  query.type  = type;
+    if (year)  query.year  = Number(year);
+    if (month) query.month = Number(month);
     const payments = await Payment.find(query)
       .populate('member', 'firstName lastName whatsapp phone')
       .sort({ createdAt: -1 });
@@ -38,7 +38,9 @@ router.get('/paid-months', protect, async (req, res) => {
     const { member, year } = req.query;
     if (!member || !year) return res.json({ months: [] });
     const payments = await Payment.find({
-      member, year: Number(year), month: { $ne: null },
+      member,
+      year:  Number(year),
+      month: { $ne: null },
     }).select('month');
     res.json({ months: payments.map(p => p.month) });
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -60,11 +62,11 @@ router.post('/', protect, async (req, res) => {
     const { monthsData, ...rest } = req.body;
 
     if (monthsData && Array.isArray(monthsData) && monthsData.length > 0) {
-      const created  = [];
-      const skipped  = [];
+      const created = [];
+      const skipped = [];
 
       for (const { month, year } of monthsData) {
-        // Skip if this month already has a record
+        // Skip if this exact month already has a record
         const exists = await paymentExists(rest.member, month, year, rest.type);
         if (exists) { skipped.push(`${month}/${year}`); continue; }
 
@@ -82,13 +84,15 @@ router.post('/', protect, async (req, res) => {
       });
     }
 
-    // Single payment — check duplicate too
+    // Single payment — check duplicate
     if (req.body.month) {
       const exists = await paymentExists(req.body.member, req.body.month, req.body.year, req.body.type);
-      if (exists) return res.status(400).json({ message: `A ${req.body.type} payment for ${req.body.month}/${req.body.year} already exists for this member.` });
+      if (exists) return res.status(400).json({
+        message: `A ${req.body.type} payment for ${req.body.month}/${req.body.year} already exists for this member.`
+      });
     }
 
-    const payment = await Payment.create(req.body);
+    const payment = await Payment.create({ ...rest, recordedBy: req.user._id });
     await payment.populate('member', 'firstName lastName');
     res.status(201).json({ payments: [payment], message: '1 payment saved' });
   } catch (err) { res.status(400).json({ message: err.message }); }
@@ -118,7 +122,7 @@ router.post('/bulk-import', protect, async (req, res) => {
           results.skipped++; continue;
         }
 
-        // Find member
+        // Find member by full name
         let member = null;
         if (row.memberName?.trim()) {
           const fullName  = row.memberName.trim();
@@ -126,18 +130,21 @@ router.post('/bulk-import', protect, async (req, res) => {
           const firstName = parts[0];
           const lastName  = parts.slice(1).join(' ');
 
+          // Try exact match first
           if (lastName) {
             member = await Member.findOne({
               firstName: { $regex: new RegExp(`^${firstName}$`, 'i') },
               lastName:  { $regex: new RegExp(`^${lastName}$`, 'i') },
             });
           }
+          // Try partial match
           if (!member && lastName) {
             member = await Member.findOne({
               firstName: { $regex: new RegExp(firstName, 'i') },
               lastName:  { $regex: new RegExp(lastName, 'i') },
             });
           }
+          // Try full name string match
           if (!member) {
             const all = await Member.find({});
             member = all.find(m =>
@@ -146,14 +153,14 @@ router.post('/bulk-import', protect, async (req, res) => {
             );
           }
           if (!member) {
-            results.errors.push(`Member not found: "${row.memberName}"`);
+            results.errors.push(`Member not found: "${row.memberName}" — check spelling`);
             results.skipped++; continue;
           }
         }
 
         if (!member) { results.skipped++; continue; }
 
-        // Parse months — "3", "1,2,3", "1-6", "1-12"
+        // Parse months — "3", "1,2,3", "1-12"
         let monthList = [];
         const rawMonths = row.months || row.month || '';
 
@@ -168,15 +175,14 @@ router.post('/bulk-import', protect, async (req, res) => {
             monthList = str.split(',').map(s => Number(s.trim())).filter(n => n >= 1 && n <= 12);
           } else {
             const n = Number(str);
-            if (n >= 1 && n <= 12) monthList = [n];
-            else monthList = [null];
+            monthList = (n >= 1 && n <= 12) ? [n] : [null];
           }
         }
 
-        // Remove duplicates in the list itself
+        // Remove duplicates in the list
         monthList = [...new Set(monthList)];
 
-        const type   = row.type?.toLowerCase().trim().replace(/\s+/g,'_') || 'dues';
+        const type   = row.type?.toLowerCase().trim().replace(/\s+/g,'_')   || 'dues';
         const method = row.method?.toLowerCase().trim().replace(/\s+/g,'_') || 'cash';
         const year   = Number(row.year);
         const amount = Number(row.amount);
