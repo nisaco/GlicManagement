@@ -15,6 +15,7 @@ import Birthdays       from './pages/Birthdays';
 import MembershipCards from './pages/MembershipCards';
 import Import          from './pages/Import';
 import Staff           from './pages/Staff';
+import ActivityLog from './pages/ActivityLog';
 
 const PrivateRoute = ({ children, roles }) => {
   const { user } = useAuth();
@@ -52,6 +53,7 @@ export default function App() {
 
           {/* Admin only */}
           <Route path="/staff" element={<PrivateRoute roles={['admin']}><Staff /></PrivateRoute>} />
+          <Route path="/activity" element={<PrivateRoute><ActivityLog /></PrivateRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

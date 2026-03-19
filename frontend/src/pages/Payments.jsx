@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import Receipt from '../components/Receipt';
+import { logActivity } from '../utils/activityLog';
 
 const MONTHS  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const TYPES   = ['tithe','dues','building_fund','welfare','youth_levy','offering','other'];
@@ -22,9 +23,9 @@ export default function Payments() {
   const [filterType,  setFilterType]  = useState('all');
   const [search,      setSearch]      = useState('');
   const [error,       setError]       = useState('');
-  const [paidMonths,  setPaidMonths]  = useState([]); // months already paid this year
-  const [autoCalc,    setAutoCalc]    = useState(null); // auto calculation result
-  const [memberDues,  setMemberDues]  = useState(200); // selected member dues amount
+  const [paidMonths,  setPaidMonths]  = useState([]);
+  const [autoCalc,    setAutoCalc]    = useState(null);
+  const [memberDues,  setMemberDues]  = useState(200);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -36,7 +37,6 @@ export default function Payments() {
   };
   useEffect(() => { fetchAll(); }, []);
 
-  // When member or year changes, fetch their paid months
   const fetchPaidMonths = useCallback(async (memberId, year) => {
     if (!memberId) { setPaidMonths([]); return; }
     try {
@@ -55,7 +55,6 @@ export default function Payments() {
     }
   }, [form.member, form.year, members]);
 
-  // Auto-calculate months when amount changes
   useEffect(() => {
     if (!form.amount || !form.member || form.type !== 'dues') {
       setAutoCalc(null);
@@ -63,7 +62,7 @@ export default function Payments() {
       return;
     }
 
-    const amount      = Number(form.amount);
+    const amount       = Number(form.amount);
     const duesPerMonth = memberDues;
     if (!duesPerMonth || amount <= 0) return;
 
@@ -74,27 +73,22 @@ export default function Payments() {
       return;
     }
 
-    // Find next unpaid months starting from current month going forward
     const allMonths = [];
     let year  = form.year;
-    let month = 1; // start from Jan
+    let month = 1;
 
-    // Find the last paid month this year
     if (paidMonths.length > 0) {
       const lastPaid = Math.max(...paidMonths);
       month = lastPaid + 1;
       if (month > 12) { month = 1; year++; }
     } else {
-      // No payments yet — start from January of selected year
       month = 1;
     }
 
-    // Collect next N unpaid months
     let count = 0;
     let safetyCheck = 0;
     while (count < numMonths && safetyCheck < 30) {
       safetyCheck++;
-      // Skip already paid months in the starting year
       if (year === form.year && paidMonths.includes(month)) {
         month++;
         if (month > 12) { month = 1; year++; }
@@ -117,10 +111,9 @@ export default function Payments() {
     setForm(f => ({ ...f, monthsData: allMonths }));
   }, [form.amount, form.member, form.year, paidMonths, memberDues, form.type]);
 
-  // Manual month toggle (for non-dues types or manual override)
   const toggleMonth = (m, y) => {
     setForm(f => {
-      const exists = f.monthsData.some(x => x.month === m && x.year === y);
+      const exists  = f.monthsData.some(x => x.month === m && x.year === y);
       const updated = exists
         ? f.monthsData.filter(x => !(x.month === m && x.year === y))
         : [...f.monthsData, { month: m, year: y }].sort((a,b) => a.year !== b.year ? a.year-b.year : a.month-b.month);
@@ -128,7 +121,17 @@ export default function Payments() {
     });
   };
 
-  const isSelected = (m, y) => form.monthsData.some(x => x.month === m && x.year === y);
+  const isSelected    = (m, y) => form.monthsData.some(x => x.month === m && x.year === y);
+  const isAlreadyPaid = (m, y) => y === form.year && paidMonths.includes(m);
+
+  // ── Close modal and reset ──
+  const closeForm = () => {
+    setShowForm(false);
+    setError('');
+    setForm(emptyForm);
+    setAutoCalc(null);
+    setPaidMonths([]);
+  };
 
   const handleSubmit = async e => {
     e.preventDefault(); setError(''); setSaving(true);
@@ -137,16 +140,30 @@ export default function Payments() {
         setError('No months selected. Enter an amount or select months manually.');
         setSaving(false); return;
       }
+
+      const amountPerMonth = Number(form.amount) / form.monthsData.length;
+
       await axios.post('/api/payments', {
-        member:    form.member,
-        amount:    Number(form.amount) / form.monthsData.length,
-        type:      form.type,
-        method:    form.method,
-        reference: form.reference,
-        notes:     form.notes,
+        member:     form.member,
+        amount:     amountPerMonth,
+        type:       form.type,
+        method:     form.method,
+        reference:  form.reference,
+        notes:      form.notes,
         monthsData: form.monthsData,
       });
-      setShowForm(false); setForm(emptyForm); setAutoCalc(null); setPaidMonths([]);
+
+      // ── Log the activity ──
+      const memberObj  = members.find(m => m._id === form.member);
+      const memberName = memberObj ? `${memberObj.firstName} ${memberObj.lastName}` : 'Member';
+      await logActivity(
+        'Payment recorded',
+        'payment',
+        `${memberName} · GH₵ ${form.amount} · ${form.type.replace('_',' ')} · ${form.monthsData.length} month${form.monthsData.length > 1 ? 's' : ''}`,
+        { months: form.monthsData.length, amount: form.amount, type: form.type }
+      );
+
+      closeForm();
       fetchAll();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save payment.');
@@ -187,7 +204,6 @@ export default function Payments() {
 
   const total = filtered.reduce((s, p) => s + p.amount, 0);
 
-  // Group monthsData by year for display
   const groupedByYear = form.monthsData.reduce((acc, { month, year }) => {
     if (!acc[year]) acc[year] = [];
     acc[year].push(month);
@@ -272,7 +288,7 @@ export default function Payments() {
           <div className="modal-box modal-box-lg">
             <div className="modal-head">
               <span className="modal-title">Record Payment</span>
-              <button onClick={() => { setShowForm(false); setError(''); setForm(emptyForm); setAutoCalc(null); setPaidMonths([]); }}
+              <button onClick={closeForm}
                 style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)', width:32, height:32, borderRadius:8, cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>✕
               </button>
             </div>
@@ -393,23 +409,22 @@ export default function Payments() {
                         )}
                       </label>
                     </div>
-                    {/* Show months for current year + next year */}
                     {[form.year, form.year+1].map(y => (
                       <div key={y} style={{ marginBottom:12 }}>
                         <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em' }}>{y}</div>
                         <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:6 }}>
                           {MONTHS.map((name, i) => {
-                            const m          = i + 1;
-                            const selected   = isSelected(m, y);
-                            const alreadyPaid = y === form.year && paidMonths.includes(m);
+                            const m           = i + 1;
+                            const selected    = isSelected(m, y);
+                            const alreadyPaid = isAlreadyPaid(m, y);
                             return (
                               <button type="button" key={m}
                                 onClick={() => !alreadyPaid && toggleMonth(m, y)}
                                 disabled={alreadyPaid}
                                 style={{
                                   padding:'9px 4px', borderRadius:9, fontSize:12, fontWeight:500,
-                                  cursor: alreadyPaid ? 'not-allowed' : 'pointer',
-                                  fontFamily:'var(--font-body)', transition:'all 0.15s', textAlign:'center',
+                                  cursor:     alreadyPaid ? 'not-allowed' : 'pointer',
+                                  fontFamily: 'var(--font-body)', transition:'all 0.15s', textAlign:'center',
                                   background: alreadyPaid  ? 'rgba(46,204,113,0.08)'
                                             : selected     ? 'linear-gradient(135deg,var(--gold),#8B6420)'
                                             : 'rgba(255,255,255,0.05)',
@@ -450,7 +465,7 @@ export default function Payments() {
                 )}
 
                 <div style={{ display:'flex', gap:10, marginTop:20, justifyContent:'flex-end', flexWrap:'wrap' }}>
-                  <button type="button" onClick={() => { setShowForm(false); setError(''); setForm(emptyForm); setAutoCalc(null); setPaidMonths([]); }} className="btn btn-ghost">Cancel</button>
+                  <button type="button" onClick={closeForm} className="btn btn-ghost">Cancel</button>
                   <button type="submit" disabled={saving} className="btn btn-gold">
                     {saving ? 'Saving...' : form.monthsData.length > 1 ? `Save ${form.monthsData.length} Records` : 'Save Payment'}
                   </button>

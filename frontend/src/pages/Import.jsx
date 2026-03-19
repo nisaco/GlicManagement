@@ -1,43 +1,42 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
+import { logActivity } from '../utils/activityLog';
 
-// ── Column definitions ──
 const MEMBER_COLS = [
-  { key:'firstName',      label:'First Name',        required:true  },
-  { key:'lastName',       label:'Last Name',          required:true  },
-  { key:'email',          label:'Email',              required:false },
-  { key:'phone',          label:'Phone',              required:false },
-  { key:'whatsapp',       label:'WhatsApp',           required:false },
-  { key:'location',       label:'Location / Area',    required:false },
-  { key:'role',           label:'Role',               required:false },
-  { key:'status',         label:'Status',             required:false },
-  { key:'duesAmount',     label:'Monthly Dues (GH₵)', required:false },
-  { key:'departments',    label:'Departments',        required:false },
-  { key:'membershipDate', label:'Membership Date',    required:false },
-  { key:'notes',          label:'Notes',              required:false },
+  { key:'firstName',      label:'First Name',                    required:true  },
+  { key:'lastName',       label:'Last Name',                     required:true  },
+  { key:'email',          label:'Email',                         required:false },
+  { key:'phone',          label:'Phone',                         required:false },
+  { key:'whatsapp',       label:'WhatsApp',                      required:false },
+  { key:'location',       label:'Location / Area',               required:false },
+  { key:'role',           label:'Role',                          required:false },
+  { key:'status',         label:'Status',                        required:false },
+  { key:'duesAmount',     label:'Monthly Dues (GH₵)',            required:false },
+  { key:'departments',    label:'Departments',                   required:false },
+  { key:'membershipDate', label:'Membership Date',               required:false },
+  { key:'notes',          label:'Notes',                         required:false },
 ];
 
 const PAYMENT_COLS = [
-  { key:'memberName',  label:'Member Full Name',          required:true  },
-  { key:'amount',      label:'Amount (GH₵)',               required:true  },
-  { key:'year',        label:'Year',                       required:true  },
-  { key:'months',      label:'Months (e.g. 1 or 1,2,3 or 1-6)', required:false },
-  { key:'type',        label:'Payment Type',               required:false },
-  { key:'method',      label:'Payment Method',             required:false },
-  { key:'reference',   label:'Reference / Receipt',        required:false },
-  { key:'notes',       label:'Notes',                      required:false },
+  { key:'memberName', label:'Member Full Name',                  required:true  },
+  { key:'amount',     label:'Amount (GH₵)',                      required:true  },
+  { key:'year',       label:'Year',                              required:true  },
+  { key:'months',     label:'Months (e.g. 1 or 1,2,3 or 1-12)', required:false },
+  { key:'type',       label:'Payment Type',                      required:false },
+  { key:'method',     label:'Payment Method',                    required:false },
+  { key:'reference',  label:'Reference / Receipt',               required:false },
+  { key:'notes',      label:'Notes',                             required:false },
 ];
 
 const PAYMENT_TYPES   = ['dues','tithe','building_fund','welfare','youth_levy','offering','other'];
 const PAYMENT_METHODS = ['cash','momo','bank_transfer','cheque'];
 
-// Download template CSV
 const downloadTemplate = (type) => {
-  const cols    = type === 'members' ? MEMBER_COLS  : PAYMENT_COLS;
+  const cols    = type === 'members' ? MEMBER_COLS : PAYMENT_COLS;
   const headers = cols.map(c => c.key).join(',');
   const example = type === 'members'
     ? 'Kwame,Mensah,kwame@email.com,0244000001,233244000001,Accra,member,active,200,"Choir,Ushering",2024-01-15,'
-    : 'Kwame Mensah,200,2024,3,dues,cash,REC001,';
+    : 'Kwame Mensah,120,2024,1-12,dues,cash,REC001,Paid full year';
   const csv = `${headers}\n${example}`;
   const a   = Object.assign(document.createElement('a'), {
     href:     URL.createObjectURL(new Blob([csv], { type:'text/csv' })),
@@ -46,17 +45,13 @@ const downloadTemplate = (type) => {
   a.click();
 };
 
-// Parse CSV text into headers + rows
 const parseCSV = (text) => {
   const lines = text.trim().split('\n').filter(Boolean);
   if (lines.length < 2) return { error: 'File must have a header row and at least one data row.' };
-
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase().replace(/\s+/g,''));
   const rows    = [];
-
   for (let i = 1; i < lines.length; i++) {
-    const cols = [];
-    let cur = ''; let inQ = false;
+    const cols = []; let cur = ''; let inQ = false;
     for (const ch of lines[i]) {
       if (ch === '"') { inQ = !inQ; continue; }
       if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; continue; }
@@ -69,7 +64,7 @@ const parseCSV = (text) => {
 };
 
 export default function Import() {
-  const [tab,      setTab]      = useState('members'); // members | payments
+  const [tab,      setTab]      = useState('members');
   const [step,     setStep]     = useState(1);
   const [rows,     setRows]     = useState([]);
   const [headers,  setHeaders]  = useState([]);
@@ -82,21 +77,14 @@ export default function Import() {
 
   const COLS = tab === 'members' ? MEMBER_COLS : PAYMENT_COLS;
 
-  const reset = () => {
-    setStep(1); setRows([]); setHeaders([]);
-    setMapping({}); setResult(null); setError('');
-  };
+  const reset            = () => { setStep(1); setRows([]); setHeaders([]); setMapping({}); setResult(null); setError(''); };
+  const handleTabChange  = t  => { setTab(t); reset(); };
 
-  const handleTabChange = (t) => { setTab(t); reset(); };
-
-  const handleFileData = (text) => {
+  const handleFileData = text => {
     const parsed = parseCSV(text);
     if (parsed.error) { setError(parsed.error); return; }
-
     setHeaders(parsed.headers);
     setRows(parsed.rows);
-
-    // Auto-map columns
     const autoMap = {};
     COLS.forEach(col => {
       const match = parsed.headers.findIndex(h =>
@@ -107,16 +95,12 @@ export default function Import() {
       if (match !== -1) autoMap[col.key] = match;
     });
     setMapping(autoMap);
-    setStep(2);
-    setError('');
+    setStep(2); setError('');
   };
 
   const handleFile = file => {
     if (!file) return;
-    if (!file.name.match(/\.(csv)$/i)) {
-      setError('Please upload a .csv file. Excel users: File → Save As → CSV');
-      return;
-    }
+    if (!file.name.match(/\.csv$/i)) { setError('Please upload a .csv file. Excel: File → Save As → CSV'); return; }
     const reader = new FileReader();
     reader.onload = e => handleFileData(e.target.result);
     reader.readAsText(file);
@@ -136,23 +120,26 @@ export default function Import() {
 
   const handleImport = async () => {
     const missing = COLS.filter(c => c.required && (mapping[c.key] === undefined || mapping[c.key] === ''));
-    if (missing.length) {
-      setError(`Please map required columns: ${missing.map(c=>c.label).join(', ')}`);
-      return;
-    }
+    if (missing.length) { setError(`Please map required columns: ${missing.map(c=>c.label).join(', ')}`); return; }
     setLoading(true); setError('');
     try {
       const list = buildList();
       const url  = tab === 'members' ? '/api/members/bulk-import' : '/api/payments/bulk-import';
       const body = tab === 'members' ? { members: list } : { payments: list };
       const { data } = await axios.post(url, body);
-      setResult(data);
-      setStep(3);
+
+      // ── Log the activity ──
+      await logActivity(
+        `Bulk ${tab} import`,
+        'import',
+        `${tab === 'members' ? 'Members' : 'Payment records'} imported — ${data.created} added, ${data.skipped} skipped${data.errors?.length ? `, ${data.errors.length} errors` : ''}`,
+        { type: tab, created: data.created, skipped: data.skipped, errors: data.errors?.length || 0 }
+      );
+
+      setResult(data); setStep(3);
     } catch (err) {
       setError(err.response?.data?.message || 'Import failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const preview = buildList().slice(0, 5);
@@ -179,8 +166,8 @@ export default function Import() {
       {step === 1 && (
         <div style={{ display:'flex', gap:0, marginBottom:24, background:'rgba(255,255,255,0.04)', borderRadius:12, padding:4, width:'fit-content', border:'1px solid rgba(255,255,255,0.08)' }}>
           {[
-            { k:'members',  label:'👥 Members'          },
-            { k:'payments', label:'💳 Payment Records'  },
+            { k:'members',  label:'👥 Members'         },
+            { k:'payments', label:'💳 Payment Records' },
           ].map(t => (
             <button key={t.k} onClick={() => handleTabChange(t.k)} style={{
               padding:'9px 22px', borderRadius:9, fontSize:13.5, fontWeight:500,
@@ -194,7 +181,7 @@ export default function Import() {
       )}
 
       {/* Steps indicator */}
-      <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:28, flexWrap:'wrap', gap:8 }}>
+      <div style={{ display:'flex', alignItems:'center', marginBottom:28, flexWrap:'wrap', gap:8 }}>
         {[{ n:1, label:'Upload File' },{ n:2, label:'Map & Preview' },{ n:3, label:'Done' }].map((s, i) => (
           <div key={s.n} style={{ display:'flex', alignItems:'center' }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -219,7 +206,6 @@ export default function Import() {
       {/* ── STEP 1: Upload ── */}
       {step === 1 && (
         <div>
-          {/* Info cards */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:20 }} className="content-2col">
             {[
               { icon:'📥', title:'Download template',  desc:`Click "Download ${tab==='members'?'Members':'Payments'} Template" above to get a blank CSV with the correct headers` },
@@ -236,17 +222,17 @@ export default function Import() {
             ))}
           </div>
 
-          {/* Payments extra note */}
           {tab === 'payments' && (
-  <div style={{ padding:'14px 18px', borderRadius:12, background:'rgba(201,148,58,0.07)', border:'1px solid rgba(201,148,58,0.2)', marginBottom:20, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.8 }}>
-    💡 <strong style={{ color:'var(--gold2)' }}>Tips for Payment imports:</strong><br/>
-    • <strong>Member Full Name</strong> must match how the name is saved e.g. <em>Kwame Mensah</em><br/>
-    • <strong>Months column</strong> supports: single month <span style={{ color:'var(--gold2)' }}>3</span>, list <span style={{ color:'var(--gold2)' }}>1,2,3</span>, or range <span style={{ color:'var(--gold2)' }}>1-6</span> — a separate record is created per month<br/>
-    • <strong>Payment type options:</strong> <span style={{ color:'var(--gold2)' }}>{PAYMENT_TYPES.join(', ')}</span><br/>
-    • <strong>Method options:</strong> <span style={{ color:'var(--gold2)' }}>{PAYMENT_METHODS.join(', ')}</span><br/>
-    • Import members first before importing their payment records
-  </div>
-)}
+            <div style={{ padding:'14px 18px', borderRadius:12, background:'rgba(201,148,58,0.07)', border:'1px solid rgba(201,148,58,0.2)', marginBottom:20, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.8 }}>
+              💡 <strong style={{ color:'var(--gold2)' }}>Tips for Payment imports:</strong><br/>
+              • <strong>Member Full Name</strong> must match how the name is saved e.g. <em>Kwame Mensah</em><br/>
+              • <strong>Months column</strong> — single: <span style={{ color:'var(--gold2)' }}>3</span> · list: <span style={{ color:'var(--gold2)' }}>1,2,3</span> · range: <span style={{ color:'var(--gold2)' }}>1-12</span> — one record per month, duplicates automatically skipped<br/>
+              • <strong>Payment type:</strong> <span style={{ color:'var(--gold2)' }}>{PAYMENT_TYPES.join(', ')}</span><br/>
+              • <strong>Method:</strong> <span style={{ color:'var(--gold2)' }}>{PAYMENT_METHODS.join(', ')}</span><br/>
+              • Import members first before importing their payment records
+            </div>
+          )}
+
           {/* Drop zone */}
           <div
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -267,8 +253,6 @@ export default function Import() {
       {step === 2 && (
         <div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }} className="content-2col">
-
-            {/* Column mapping */}
             <div className="glass-card">
               <div style={{ padding:'16px 22px', borderBottom:'1px solid var(--border)', background:'rgba(255,255,255,0.02)' }}>
                 <div style={{ fontFamily:'var(--font-display)', fontSize:18, fontWeight:600, color:'var(--white)' }}>Map Your Columns</div>
@@ -292,14 +276,11 @@ export default function Import() {
               </div>
             </div>
 
-            {/* Stats */}
             <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
               <div className="glass-card" style={{ padding:'20px 22px' }}>
                 <div style={{ fontSize:10.5, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Rows Detected</div>
                 <div style={{ fontFamily:'var(--font-display)', fontSize:40, fontWeight:700, color:'var(--gold2)' }}>{rows.length}</div>
-                <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>
-                  {tab==='members' ? 'members' : 'payment records'} ready to import
-                </div>
+                <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>{tab==='members'?'members':'payment records'} ready to import</div>
               </div>
               <div className="glass-card" style={{ padding:'20px 22px' }}>
                 <div style={{ fontSize:10.5, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:12 }}>Columns in File</div>
@@ -326,7 +307,7 @@ export default function Import() {
                   <tr>
                     {tab === 'members'
                       ? ['First Name','Last Name','WhatsApp','Location','Role','Dues'].map(h=><th key={h}>{h}</th>)
-                      : ['Member Name','Amount','Year','Month','Type','Method'].map(h=><th key={h}>{h}</th>)}
+                      : ['Member Name','Amount','Year','Months','Type','Method'].map(h=><th key={h}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -343,7 +324,7 @@ export default function Import() {
                         <td style={{ fontWeight:500 }}>{row.memberName || <span style={{ color:'var(--red)' }}>Missing</span>}</td>
                         <td style={{ color:'var(--green)', fontWeight:500 }}>{row.amount ? `GH₵ ${row.amount}` : <span style={{ color:'var(--red)' }}>Missing</span>}</td>
                         <td style={{ color:'var(--muted)' }}>{row.year || <span style={{ color:'var(--red)' }}>Missing</span>}</td>
-                        <td style={{ color:'var(--muted)' }}>{row.month||'—'}</td>
+                        <td style={{ color:'var(--gold2)' }}>{row.months||'—'}</td>
                         <td style={{ color:'var(--muted)', textTransform:'capitalize' }}>{row.type?.replace('_',' ')||'dues'}</td>
                         <td style={{ color:'var(--muted)', textTransform:'capitalize' }}>{row.method||'cash'}</td>
                       </>)}
@@ -377,7 +358,7 @@ export default function Import() {
             </div>
             <div style={{ padding:'16px 28px', borderRadius:14, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ fontFamily:'var(--font-display)', fontSize:32, fontWeight:700, color:'var(--muted)' }}>{result.skipped}</div>
-              <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>Skipped</div>
+              <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>Skipped (duplicates)</div>
             </div>
           </div>
 

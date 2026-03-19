@@ -17,6 +17,7 @@ app.use('/api/dashboard',  require('./routes/dashboard'));
 app.use('/api/reminders',  require('./routes/reminders'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/pledges',    require('./routes/pledges'));
+app.use('/api/activity', require('./routes/activitylog').router);
 
 // Serve React frontend in production
 app.use(express.static(path.join(__dirname, '../frontend/dist')));

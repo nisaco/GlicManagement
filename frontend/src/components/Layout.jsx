@@ -21,6 +21,7 @@ const NAV = [
   { to:'/reminders',   label:'WhatsApp Reminders',  icon:'📱', roles:['admin','secretary'], pulse:true },
   { section: 'Admin' },
   { to:'/staff',       label:'Staff Management',    icon:'👤', roles:['admin'] },
+  { to:'/activity', label:'Activity Log', icon:'🕐', roles:['admin'] },
 ];
 
 export default function Layout({ children }) {
