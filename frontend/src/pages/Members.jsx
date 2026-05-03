@@ -239,15 +239,15 @@ export default function Members() {
 
                 {/* Personal info grid */}
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:14 }}>
-                  <F label="First Name *"        k="firstName"      form={form} setForm={setForm} required />
-                  <F label="Last Name *"         k="lastName"       form={form} setForm={setForm} required />
-                  <F label="Email"               k="email"          form={form} setForm={setForm} type="email" />
-                  <F label="Phone"               k="phone"          form={form} setForm={setForm} ph="0244000000" />
-                  <F label="WhatsApp Number *"   k="whatsapp"       form={form} setForm={setForm} ph="233244000000" required />
-                  <F label="Location / Area"     k="location"       form={form} setForm={setForm} ph="e.g. Accra, Tema, Kumasi" />
-                  <F label="Date of Birth"       k="dob"            form={form} setForm={setForm} type="date" />
-                  <F label="Membership Date"     k="membershipDate" form={form} setForm={setForm} type="date" />
-                  <F label="Baptism Date"        k="baptismDate"    form={form} setForm={setForm} type="date" />
+                  <F label="First Name *"         k="firstName"      form={form} setForm={setForm} required />
+                  <F label="Last Name *"          k="lastName"       form={form} setForm={setForm} required />
+                  <F label="Email"                k="email"          form={form} setForm={setForm} type="email" />
+                  <F label="Phone"                k="phone"          form={form} setForm={setForm} ph="0244000000" />
+                  <F label="WhatsApp Number *"    k="whatsapp"       form={form} setForm={setForm} ph="233244000000" required />
+                  <F label="Location / Area"      k="location"       form={form} setForm={setForm} ph="e.g. Accra, Tema, Kumasi" />
+                  <F label="Date of Birth"        k="dob"            form={form} setForm={setForm} type="date" />
+                  <F label="Membership Date"      k="membershipDate" form={form} setForm={setForm} type="date" />
+                  <F label="Baptism Date"         k="baptismDate"    form={form} setForm={setForm} type="date" />
                   <F label="Monthly Dues (GH₵)"  k="duesAmount"     form={form} setForm={setForm} type="number" />
                 </div>
 
