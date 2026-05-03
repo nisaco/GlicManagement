@@ -29,12 +29,20 @@ export default function Payments() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [p, m] = await Promise.all([
-      axios.get('/api/payments'),
-      axios.get('/api/members', { params:{ status:'active' } }),
-    ]);
-    setPayments(p.data); setMembers(m.data); setLoading(false);
+    try {
+      const [p, m] = await Promise.all([
+        axios.get('/api/payments'),
+        axios.get('/api/members', { params:{ status:'active' } }),
+      ]);
+      setPayments(p.data); 
+      setMembers(m.data);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
+
   useEffect(() => { fetchAll(); }, []);
 
   const fetchPaidMonths = useCallback(async (memberId, year) => {
@@ -53,8 +61,9 @@ export default function Payments() {
       if (m) setMemberDues(m.duesAmount || 200);
       fetchPaidMonths(form.member, form.year);
     }
-  }, [form.member, form.year, members]);
+  }, [form.member, form.year, members, fetchPaidMonths]);
 
+  // SMOOTHED AUTO-CALCULATION LOGIC
   useEffect(() => {
     if (!form.amount || !form.member || form.type !== 'dues') {
       setAutoCalc(null);
@@ -62,7 +71,7 @@ export default function Payments() {
       return;
     }
 
-    const amount       = Number(form.amount);
+    const amount = Number(form.amount);
     const duesPerMonth = memberDues;
     if (!duesPerMonth || amount <= 0) return;
 
@@ -74,30 +83,39 @@ export default function Payments() {
     }
 
     const allMonths = [];
-    let year  = form.year;
-    let month = 1;
+    let calcYear  = form.year;
+    let calcMonth = 1;
 
+    // Determine starting month based on DB records
     if (paidMonths.length > 0) {
-      const lastPaid = Math.max(...paidMonths);
-      month = lastPaid + 1;
-      if (month > 12) { month = 1; year++; }
+      calcMonth = Math.max(...paidMonths) + 1;
+      if (calcMonth > 12) { calcMonth = 1; calcYear++; }
     } else {
-      month = 1;
+      // If no payments found for the selected year, start at Month 1 of that year
+      calcMonth = 1;
+      calcYear = form.year;
     }
 
     let count = 0;
     let safetyCheck = 0;
-    while (count < numMonths && safetyCheck < 30) {
+    // Limit search to 60 iterations (5 years) to prevent infinite loops
+    while (count < numMonths && safetyCheck < 60) {
       safetyCheck++;
-      if (year === form.year && paidMonths.includes(month)) {
-        month++;
-        if (month > 12) { month = 1; year++; }
+      
+      // Check if current calcYear/calcMonth is already in the paidMonths list
+      // (paidMonths only contains months for form.year)
+      const alreadyPaid = (calcYear === form.year && paidMonths.includes(calcMonth));
+
+      if (alreadyPaid) {
+        calcMonth++;
+        if (calcMonth > 12) { calcMonth = 1; calcYear++; }
         continue;
       }
-      allMonths.push({ month, year });
+
+      allMonths.push({ month: calcMonth, year: calcYear });
       count++;
-      month++;
-      if (month > 12) { month = 1; year++; }
+      calcMonth++;
+      if (calcMonth > 12) { calcMonth = 1; calcYear++; }
     }
 
     const remainder = amount - (numMonths * duesPerMonth);
@@ -124,7 +142,6 @@ export default function Payments() {
   const isSelected    = (m, y) => form.monthsData.some(x => x.month === m && x.year === y);
   const isAlreadyPaid = (m, y) => y === form.year && paidMonths.includes(m);
 
-  // ── Close modal and reset ──
   const closeForm = () => {
     setShowForm(false);
     setError('');
@@ -134,11 +151,15 @@ export default function Payments() {
   };
 
   const handleSubmit = async e => {
-    e.preventDefault(); setError(''); setSaving(true);
+    e.preventDefault(); 
+    setError(''); 
+    setSaving(true);
+    
     try {
       if (form.monthsData.length === 0) {
         setError('No months selected. Enter an amount or select months manually.');
-        setSaving(false); return;
+        setSaving(false); 
+        return;
       }
 
       const amountPerMonth = Number(form.amount) / form.monthsData.length;
@@ -156,6 +177,7 @@ export default function Payments() {
       // ── Log the activity ──
       const memberObj  = members.find(m => m._id === form.member);
       const memberName = memberObj ? `${memberObj.firstName} ${memberObj.lastName}` : 'Member';
+      
       await logActivity(
         'Payment recorded',
         'payment',
@@ -167,12 +189,19 @@ export default function Payments() {
       fetchAll();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save payment.');
-    } finally { setSaving(false); }
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const handleDelete = async id => {
     if (!window.confirm('Delete this payment record?')) return;
-    await axios.delete(`/api/payments/${id}`); fetchAll();
+    try {
+      await axios.delete(`/api/payments/${id}`); 
+      fetchAll();
+    } catch (err) {
+      console.error("Delete error:", err);
+    }
   };
 
   const exportCSV = () => {
@@ -220,8 +249,8 @@ export default function Payments() {
           <p className="pg-sub">{filtered.length} records · GH₵ {total.toLocaleString()} total</p>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button onClick={exportCSV}               className="btn btn-ghost">📥 Export CSV</button>
-          <button onClick={() => setShowForm(true)}  className="btn btn-gold">+ Record Payment</button>
+          <button onClick={exportCSV} className="btn btn-ghost">📥 Export CSV</button>
+          <button onClick={() => setShowForm(true)} className="btn btn-gold">+ Record Payment</button>
         </div>
       </div>
 
@@ -396,7 +425,7 @@ export default function Payments() {
                   </div>
                 )}
 
-                {/* Manual month grid for non-dues OR manual override */}
+                {/* Manual month grid */}
                 {(form.type !== 'dues' || !autoCalc || autoCalc.numMonths === 0) && form.member && (
                   <div style={{ marginTop:16 }}>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>

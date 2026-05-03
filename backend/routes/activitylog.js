@@ -13,28 +13,37 @@ const logSchema = new mongoose.Schema({
 
 const ActivityLog = mongoose.models.ActivityLog || mongoose.model('ActivityLog', logSchema);
 
-// GET /api/activity — fetch recent activity
 router.get('/', protect, async (req, res) => {
   try {
-    const limit = Number(req.query.limit) || 50;
+    const limit = Math.min(Number(req.query.limit) || 50, 200); // Guard against huge requests
     const logs  = await ActivityLog.find()
       .populate('performedBy', 'name role')
       .sort({ createdAt: -1 })
       .limit(limit);
     res.json(logs);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) { 
+    res.status(500).json({ message: "Could not fetch logs" }); 
+  }
 });
 
-// POST /api/activity — log an action
 router.post('/', protect, async (req, res) => {
   try {
     const { action, category, description, meta } = req.body;
+    
+    // Ensure we don't log empty actions
+    if (!action) return res.status(400).json({ message: "Action title required" });
+
     const log = await ActivityLog.create({
-      action, category, description, meta,
-      performedBy: req.user._id,
+      action, 
+      category: category || 'other', 
+      description, 
+      meta,
+      performedBy: req.user?._id, // Safely handle req.user
     });
     res.status(201).json(log);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) { 
+    res.status(500).json({ message: err.message }); 
+  }
 });
 
 module.exports = { router, ActivityLog };
