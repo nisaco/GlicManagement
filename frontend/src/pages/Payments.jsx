@@ -312,9 +312,26 @@ export default function Payments() {
       </div>
 
       {/* Record Payment Modal */}
-      {showForm && (
-        <div className="modal-overlay">
-          <div className="modal-box modal-box-lg">
+{showForm && (
+        <div 
+          className="modal-overlay" 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 9999, 
+            display: 'flex', 
+            alignItems: 'flex-start', 
+            justifyContent: 'center', 
+            padding: '100px 20px 40px', // Pushes the form box down by 100px
+            overflowY: 'auto', 
+            background: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(12px)'
+          }}
+        >
+          <div className="modal-box modal-box-lg" style={{ marginBottom: '40px' }}>
             <div className="modal-head">
               <span className="modal-title">Record Payment</span>
               <button onClick={closeForm}

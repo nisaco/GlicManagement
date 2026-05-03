@@ -191,15 +191,30 @@ export default function Members() {
       </div>
 
       {/* Add / Edit Modal */}
-      {showForm && (
-        <div className="modal-overlay" style={{ padding: '20px 20px', alignItems: 'flex-start' }}>
-          <div className="modal-box modal-box-lg" style={{ marginTop: '10px' }}>
+{showForm && (
+        <div 
+          className="modal-overlay" 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 9999, // Higher than navbar[cite: 17]
+            display: 'flex', 
+            alignItems: 'flex-start', // Starts at the top[cite: 17]
+            justifyContent: 'center', 
+            padding: '20px', 
+            overflowY: 'auto', // Allows scrolling[cite: 17]
+            background: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(12px)'
+          }}
+        >
+          <div className="modal-box modal-box-lg" style={{ marginTop: '20px', marginBottom: '40px' }}>
             <div className="modal-head">
-              <span className="modal-title">{editing ? 'Edit Member' : 'Add New Member'}</span>
-              <button
-                onClick={() => setShowForm(false)}
-                style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)', width:32, height:32, borderRadius:8, cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                ✕
+              <span className="modal-title">Record Payment</span>
+              <button onClick={closeForm}
+                style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)', width:32, height:32, borderRadius:8, cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>✕
               </button>
             </div>
             <div className="modal-body">
