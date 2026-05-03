@@ -180,12 +180,14 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   display: flex;
-  align-items: flex-start; /* Keeps it at the top */
+  /* CHANGED: Switched from centering to flex-start to anchor at the top */
+  align-items: flex-start; 
   justify-content: center;
-  z-index: 200;
-  padding: 20px; /* FIXED: Reduced from 80px to 20px to bring form to the top */
+  z-index: 9999; /* Forced high to stay above all nav elements */
+  /* CHANGED: Increased top padding to 120px to clear the navbar[cite: 17, 20] */
+  padding: 120px 20px 40px; 
   animation: fadeIn 0.2s ease;
-  overflow-y: auto; /* Ensures you can scroll the form if it is long */
+  overflow-y: auto; /* Ensures long forms remain scrollable */
 }
 
 .modal-box {
@@ -196,8 +198,7 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
   border-radius: 22px;
   width: 100%;
   max-width: 560px;
-  /* FIXED: Removed max-height restriction to allow full form visibility */
-  margin-top: 10px; /* Small gap from the very top edge */
+  /* REMOVED: max-height restriction so the box doesn't cut off content[cite: 17] */
   display: flex;
   flex-direction: column;
   box-shadow:
@@ -206,8 +207,9 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
     0 0 40px rgba(201,148,58,0.06);
   animation: fadeUp 0.3s ease;
   position: relative;
-  overflow: hidden;
+  overflow: visible; /* Ensure dropdowns inside the box are visible[cite: 32] */
 }
+
 /* Top shimmer line on modal */
 .modal-box::before {
   content: '';
@@ -217,7 +219,9 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
   background: linear-gradient(90deg, transparent, rgba(201,148,58,0.5), transparent);
   z-index: 3;
 }
+
 .modal-box-lg { max-width: 700px; }
+
 .modal-head {
   padding: 20px 24px;
   border-bottom: 1px solid rgba(255,255,255,0.07);
@@ -227,19 +231,21 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
   flex-shrink: 0;
   background: rgba(201,148,58,0.04);
 }
+
 .modal-title {
   font-family: var(--font-display);
   font-size: 22px;
   font-weight: 700;
   color: var(--white);
 }
+
 .modal-body {
   padding: 22px 24px;
-  overflow-y: auto;
+  /* CHANGED: Set to visible so internal scrolling doesn't conflict with overlay scrolling[cite: 17, 30] */
+  overflow-y: visible; 
   flex: 1;
 }
-.modal-body::-webkit-scrollbar { width: 3px; }
-.modal-body::-webkit-scrollbar-thumb { background: rgba(201,148,58,0.3); border-radius: 3px; }
+
 .modal-foot {
   padding: 16px 24px;
   border-top: 1px solid rgba(255,255,255,0.07);
