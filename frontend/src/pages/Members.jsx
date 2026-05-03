@@ -93,7 +93,6 @@ export default function Members() {
 
   return (
     <div>
-      {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:24, flexWrap:'wrap', gap:12 }}>
         <div>
           <div className="pg-breadcrumb">Gospel Light International Church</div>
@@ -103,7 +102,6 @@ export default function Members() {
         <button onClick={openAdd} className="btn btn-gold">+ Add Member</button>
       </div>
 
-      {/* Filters */}
       <div style={{ display:'flex', gap:8, marginBottom:18, flexWrap:'wrap', alignItems:'center' }}>
         <input
           placeholder="Search name, phone, email..."
@@ -123,7 +121,6 @@ export default function Members() {
         ))}
       </div>
 
-      {/* Table */}
       <div className="glass-card">
         <div className="table-wrap">
           <table className="data-table">
@@ -190,37 +187,19 @@ export default function Members() {
         </div>
       </div>
 
-      {/* Add / Edit Modal */}
-{showForm && (
-        <div 
-          className="modal-overlay" 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            zIndex: 9999, // Higher than navbar[cite: 17]
-            display: 'flex', 
-            alignItems: 'flex-start', // Starts at the top[cite: 17]
-            justifyContent: 'center', 
-            padding: '20px', 
-            overflowY: 'auto', // Allows scrolling[cite: 17]
-            background: 'rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(12px)'
-          }}
-        >
-          <div className="modal-box modal-box-lg" style={{ marginTop: '20px', marginBottom: '40px' }}>
+      {showForm && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '120px 20px 40px', overflowY: 'auto', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)' }}>
+          <div className="modal-box modal-box-lg" style={{ marginBottom: '40px' }}>
             <div className="modal-head">
-              <span className="modal-title">Record Payment</span>
-              <button onClick={closeForm}
-                style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)', width:32, height:32, borderRadius:8, cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>✕
+              <span className="modal-title">{editing ? 'Edit Member' : 'Add New Member'}</span>
+              <button
+                onClick={() => setShowForm(false)}
+                style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)', width:32, height:32, borderRadius:8, cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                ✕
               </button>
             </div>
             <div className="modal-body">
               <form onSubmit={handleSubmit}>
-
-                {/* Photo upload */}
                 <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:20, padding:'14px 16px', borderRadius:12, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', flexWrap:'wrap' }}>
                   <div
                     style={{ width:64, height:64, borderRadius:14, overflow:'hidden', flexShrink:0, background:'rgba(201,148,58,0.1)', border:'1px solid rgba(201,148,58,0.2)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
@@ -252,7 +231,6 @@ export default function Members() {
                   />
                 </div>
 
-                {/* Personal info grid */}
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:14 }}>
                   <F label="First Name *"         k="firstName"      form={form} setForm={setForm} required />
                   <F label="Last Name *"          k="lastName"       form={form} setForm={setForm} required />
@@ -266,7 +244,6 @@ export default function Members() {
                   <F label="Monthly Dues (GH₵)"  k="duesAmount"     form={form} setForm={setForm} type="number" />
                 </div>
 
-                {/* Role and Status */}
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:14, marginTop:14 }}>
                   <div>
                     <label className="field-label">Role</label>
@@ -292,7 +269,6 @@ export default function Members() {
                   </div>
                 </div>
 
-                {/* Departments */}
                 <div style={{ marginTop:14 }}>
                   <label className="field-label">Departments</label>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:4 }}>
@@ -315,7 +291,6 @@ export default function Members() {
                   </div>
                 </div>
 
-                {/* Notes */}
                 <div style={{ marginTop:14 }}>
                   <label className="field-label">Notes</label>
                   <textarea
@@ -327,12 +302,10 @@ export default function Members() {
                   />
                 </div>
 
-                {/* Actions */}
                 <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end', flexWrap:'wrap' }}>
                   <button type="button" onClick={() => setShowForm(false)} className="btn btn-ghost">Cancel</button>
                   <button type="submit" className="btn btn-gold">{editing ? 'Save Changes' : 'Add Member'}</button>
                 </div>
-
               </form>
             </div>
           </div>
