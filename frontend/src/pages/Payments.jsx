@@ -63,7 +63,6 @@ export default function Payments() {
     }
   }, [form.member, form.year, members, fetchPaidMonths]);
 
-  // SMOOTHED AUTO-CALCULATION LOGIC
   useEffect(() => {
     if (!form.amount || !form.member || form.type !== 'dues') {
       setAutoCalc(null);
@@ -83,39 +82,30 @@ export default function Payments() {
     }
 
     const allMonths = [];
-    let calcYear  = form.year;
-    let calcMonth = 1;
+    let year  = form.year;
+    let month = 1;
 
-    // Determine starting month based on DB records
     if (paidMonths.length > 0) {
-      calcMonth = Math.max(...paidMonths) + 1;
-      if (calcMonth > 12) { calcMonth = 1; calcYear++; }
+      const lastPaid = Math.max(...paidMonths);
+      month = lastPaid + 1;
+      if (month > 12) { month = 1; year++; }
     } else {
-      // If no payments found for the selected year, start at Month 1 of that year
-      calcMonth = 1;
-      calcYear = form.year;
+      month = 1;
     }
 
     let count = 0;
     let safetyCheck = 0;
-    // Limit search to 60 iterations (5 years) to prevent infinite loops
     while (count < numMonths && safetyCheck < 60) {
       safetyCheck++;
-      
-      // Check if current calcYear/calcMonth is already in the paidMonths list
-      // (paidMonths only contains months for form.year)
-      const alreadyPaid = (calcYear === form.year && paidMonths.includes(calcMonth));
-
-      if (alreadyPaid) {
-        calcMonth++;
-        if (calcMonth > 12) { calcMonth = 1; calcYear++; }
+      if (year === form.year && paidMonths.includes(month)) {
+        month++;
+        if (month > 12) { month = 1; year++; }
         continue;
       }
-
-      allMonths.push({ month: calcMonth, year: calcYear });
+      allMonths.push({ month, year });
       count++;
-      calcMonth++;
-      if (calcMonth > 12) { calcMonth = 1; calcYear++; }
+      month++;
+      if (month > 12) { month = 1; year++; }
     }
 
     const remainder = amount - (numMonths * duesPerMonth);
@@ -174,7 +164,6 @@ export default function Payments() {
         monthsData: form.monthsData,
       });
 
-      // ── Log the activity ──
       const memberObj  = members.find(m => m._id === form.member);
       const memberName = memberObj ? `${memberObj.firstName} ${memberObj.lastName}` : 'Member';
       
@@ -312,25 +301,8 @@ export default function Payments() {
       </div>
 
       {/* Record Payment Modal */}
-{showForm && (
-        <div 
-          className="modal-overlay" 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            zIndex: 9999, 
-            display: 'flex', 
-            alignItems: 'flex-start', 
-            justifyContent: 'center', 
-            padding: '100px 20px 40px', // Pushes the form box down by 100px
-            overflowY: 'auto', 
-            background: 'rgba(0,0,0,0.85)',
-            backdropFilter: 'blur(12px)'
-          }}
-        >
+      {showForm && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '130px 20px 40px', overflowY: 'auto', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)' }}>
           <div className="modal-box modal-box-lg" style={{ marginBottom: '40px' }}>
             <div className="modal-head">
               <span className="modal-title">Record Payment</span>
