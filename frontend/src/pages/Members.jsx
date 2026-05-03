@@ -192,8 +192,8 @@ export default function Members() {
 
       {/* Add / Edit Modal */}
       {showForm && (
-        <div className="modal-overlay">
-          <div className="modal-box modal-box-lg">
+        <div className="modal-overlay" style={{ padding: '20px 20px', alignItems: 'flex-start' }}>
+          <div className="modal-box modal-box-lg" style={{ marginTop: '10px' }}>
             <div className="modal-head">
               <span className="modal-title">{editing ? 'Edit Member' : 'Add New Member'}</span>
               <button
