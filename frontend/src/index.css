@@ -180,12 +180,14 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   display: flex;
-  align-items: flex-start;
+  align-items: flex-start; /* Keeps it at the top */
   justify-content: center;
   z-index: 200;
-  padding: 80px 20px 20px;
+  padding: 20px; /* FIXED: Reduced from 80px to 20px to bring form to the top */
   animation: fadeIn 0.2s ease;
+  overflow-y: auto; /* Ensures you can scroll the form if it is long */
 }
+
 .modal-box {
   background: rgba(15,25,55,0.85);
   backdrop-filter: blur(40px);
@@ -194,7 +196,8 @@ textarea.field-input      { resize: vertical; line-height: 1.6; }
   border-radius: 22px;
   width: 100%;
   max-width: 560px;
-  max-height: 88vh;
+  /* FIXED: Removed max-height restriction to allow full form visibility */
+  margin-top: 10px; /* Small gap from the very top edge */
   display: flex;
   flex-direction: column;
   box-shadow:
