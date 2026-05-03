@@ -188,7 +188,7 @@ export default function Members() {
       </div>
 
       {showForm && (
-        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '120px 20px 40px', overflowY: 'auto', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)' }}>
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '130px 20px 40px', overflowY: 'auto', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)' }}>
           <div className="modal-box modal-box-lg" style={{ marginBottom: '40px' }}>
             <div className="modal-head">
               <span className="modal-title">{editing ? 'Edit Member' : 'Add New Member'}</span>
